@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Container Throughput Observatory</title>
+<style>
+:root{--bg:#edf4f7;--ink:#153140;--muted:#506874;--blue:#056c80;--line:#c7d9df;--paper:#fff;--rust:#9a4729}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,sans-serif}header,main,footer{max-width:1160px;margin:auto;padding:22px clamp(16px,4vw,42px)}header,footer{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}footer{border-top:1px solid var(--line);border-bottom:0;color:var(--muted)}a{color:#006073}.hero{padding:38px 0 20px;max-width:850px}.hero h1{font-size:clamp(38px,7vw,69px);line-height:1.03;letter-spacing:-.06em;margin:12px 0 20px}.hero p{color:var(--muted);font-size:1.16rem}.label{color:#006073;letter-spacing:.09em;font-size:.85rem}.panel{background:var(--paper);border:1px solid var(--line);padding:clamp(14px,3vw,24px);margin:18px 0}.panel h2{margin:0 0 14px}.controls{display:flex;flex-wrap:wrap;gap:15px}.controls label{min-width:120px;max-width:100%}select,button{font:inherit;color:var(--ink);padding:7px 10px;border:1px solid #7895a2;background:#f6fafb;border-radius:4px;max-width:100%}select{display:block;margin-top:5px}button{cursor:pointer}select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:3px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:18px}.stats div{border-top:1px solid var(--line);padding:10px 0}.stats strong{display:block;font-size:1.5rem}.muted,.stats span{color:var(--muted)}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;text-align:left;white-space:nowrap}th,td{padding:9px 10px;border-bottom:1px solid var(--line)}thead th{color:var(--muted);font-weight:500}td.negative{color:var(--rust)}.scroll table button{border:0;background:none;text-decoration:underline;color:#006073;padding:2px}.chart{display:grid;grid-template-columns:repeat(6,minmax(70px,1fr));min-width:475px;gap:8px;margin:16px 0}.column{text-align:center;background:#f1f6f7;padding:5px;font-size:.82rem}.column strong{height:25px;display:block}.column .track{height:92px;display:flex;align-items:flex-end;justify-content:center}.column i{display:block;background:var(--blue);width:45%}.method{max-width:850px;margin:34px 0}.tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
+</style></head><body>
+<header><strong>Container Throughput Observatory</strong><a href="https://github.com/Ehsan-Ch/container-throughput-observatory">GitHub</a></header>
+<main><section class="hero"><div class="label">PORT TRAFFIC · 2019–2024</div><h1>How has container traffic changed since 2019?</h1><p>Compare economies on a common year, explore trends in port traffic, and see how the available data limits the comparison.</p></section>
+<section class="panel"><h2>Compare with the 2019 baseline</h2><div class="controls">
+<label>Comparison year<select id="year"></select></label><label>Region<select id="region"></select></label></div>
+<div id="stats" class="stats" aria-live="polite"></div>
+<p id="coverage" class="muted"></p><p class="muted">Combined growth compares summed traffic for the same economies in both years. Median growth gives each matched economy equal weight. A change of year can change which economies are matched.</p>
+</section>
+<section class="panel"><h2 id="profileTitle">Economy trend</h2><div class="controls"><label>Economy<select id="economy"></select></label></div><p id="profileNote" aria-live="polite" class="muted"></p>
+<div class="scroll"><div id="trend" class="chart" role="img" aria-label="Annual container-port traffic in millions of TEU"></div></div>
+</section>
+<section class="panel"><h2>Economy comparisons</h2>
+<div class="controls"><label>Records to show<select id="filter"><option value="matched">Matched to 2019</option><option value="all">All economies</option><option value="missing">Missing comparison year</option></select></label>
+<label>Sort by<select id="rank"><option value="traffic">Comparison-year traffic</option><option value="change">Percentage change</option><option value="name">Economy name</option></select></label></div>
+<div class="tools"><button id="export" type="button">Download selected rows</button><span id="rowCount" class="muted" role="status"></span></div>
+<div class="scroll" tabindex="0"><table aria-label="Economy-level port throughput"><thead><tr><th>Economy</th><th>Region</th><th>2019 (TEU)</th><th id="yearHead">2024 (TEU)</th><th>Change from 2019</th></tr></thead><tbody id="rows"></tbody></table></div>
+</section>
+<section class="method"><h2>Source and interpretation</h2><p>World Development Indicators series IS.SHP.GOOD.TU measures container port traffic in twenty-foot equivalent units (TEU). Values are reported for economies, including some territories. This explorer excludes World Bank regional and income aggregates. A blank observation remains missing.</p><p>A matched pair requires a positive 2019 value and a reported comparison-year value. Coverage includes economies with no observations in this period, including landlocked economies. The figures describe the reporting subset and should not be interpreted as totals for the world or a whole region.</p><p id="sourceDate"></p><a href="https://data.worldbank.org/indicator/IS.SHP.GOOD.TU">Source indicator and data license</a></section>
+</main><footer><span>Container Throughput Observatory</span><span>Source data by UNCTAD via World Development Indicators</span></footer>
+<script type="application/json" id="data"><!-- REPORT --></script>
+<script>
+const report=JSON.parse(document.getElementById('data').textContent);
+const get=id=>document.getElementById(id);
+const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+const option=(value,label)=>'<option value="'+escapeHTML(value)+'">'+escapeHTML(label)+'</option>';
+const fmt=value=>value===null?'—':value.toLocaleString('en-US',{maximumFractionDigits:1});
+const pct=value=>value===null?'—':(value>0?'+':'')+value.toFixed(1)+'%';
+const million=value=>value===null?'Missing':(value/1e6).toLocaleString('en-US',{maximumFractionDigits:3});
+const measure=(r,y)=>r.values[y];
+const change=(r,y)=>r.values[2019]>0&&measure(r,y)!==null?100*(measure(r,y)-r.values[2019])/r.values[2019]:null;
+get('year').innerHTML=report.years.slice(1).map(y=>option(y,y)).join('');
+get('year').value='2024';
+get('region').innerHTML=option('all','All regions')+report.regions.map(r=>option(r,r)).join('');
+get('sourceDate').textContent='Snapshot downloaded '+report.snapshot+'. WDI metadata last updated '+report.updated+'.';
+let displayed=[];
+function cohort(){
+  return report.economies.filter(r=>get('region').value==='all'||r.region===get('region').value);
+}
+function profile(){
+  const r=report.economies.find(e=>e.code===get('economy').value);
+  get('profileTitle').textContent=r?r.name+' · annual traffic':'Economy trend';
+  if(!r){get('trend').innerHTML='';get('profileNote').textContent='No economy selected.';return;}
+  const max=Math.max(1,...report.years.map(y=>r.values[y]??0));
+  const series=report.years.map(y=>y+': '+(r.values[y]===null?'missing':fmt(r.values[y])+' TEU'));
+  get('trend').setAttribute('aria-label',r.name+' annual throughput. '+series.join('. '));
+  get('profileNote').textContent=r.region+' · Values in millions of TEU.';
+  get('trend').innerHTML=report.years.map(y=>{
+    const n=r.values[y];
+    return '<div class="column"><strong>'+million(n)+'</strong><div class="track">'+(n===null?'':'<i style="height:'+100*n/max+'%"></i>')+'</div>'+y+'</div>';
+  }).join('');
+}
+function update(){
+  const year=get('year').value, region=cohort();
+  const pairs=region.filter(r=>change(r,year)!==null), observed=region.filter(r=>measure(r,year)!==null).length;
+  const oldTotal=pairs.reduce((n,r)=>n+r.values[2019],0), newTotal=pairs.reduce((n,r)=>n+measure(r,year),0);
+  const deltas=pairs.map(r=>change(r,year)).sort((a,b)=>a-b), center=Math.floor(deltas.length/2);
+  const median=!deltas.length?null:deltas.length%2?deltas[center]:(deltas[center]+deltas[center-1])/2;
+  const combined=oldTotal?100*(newTotal-oldTotal)/oldTotal:null;
+  get('stats').innerHTML=[['Reported comparison year',observed+' / '+region.length],['Matched economies',pairs.length],['Combined traffic change',pct(combined)],['Median economy change',pct(median)]].map(([k,v])=>'<div><span>'+k+'</span><strong>'+v+'</strong></div>').join('');
+  get('coverage').textContent=(region.length-observed)+' economies have no '+year+' value. '+(observed-pairs.length)+' have a reported value but lack a positive 2019 baseline.';
+  const previous=get('economy').value;
+  get('economy').innerHTML=region.map(r=>option(r.code,r.name)).join('');
+  get('economy').value=region.some(r=>r.code===previous)?previous:(region.some(r=>r.code==='CHN')?'CHN':region[0].code);
+  profile();
+  const mode=get('filter').value, rank=get('rank').value;
+  displayed=(mode==='matched'?pairs:mode==='missing'?region.filter(r=>measure(r,year)===null):region.slice());
+  if(rank!=='name'){
+    const metric=r=>rank==='change'?change(r,year):measure(r,year);
+    displayed.sort((a,b)=>(metric(b)??-Infinity)-(metric(a)??-Infinity)||a.name.localeCompare(b.name));
+  }
+  get('yearHead').textContent=year+' (TEU)';
+  get('rowCount').textContent=displayed.length+' economies. Showing up to 25 in the table.';
+  get('export').disabled=!displayed.length;
+  get('rows').innerHTML=displayed.slice(0,25).map(r=>'<tr><th scope="row"><button type="button" data-code="'+escapeHTML(r.code)+'">'+escapeHTML(r.name)+'</button></th><td>'+escapeHTML(r.region)+'</td><td>'+fmt(r.values[2019])+'</td><td>'+fmt(measure(r,year))+'</td><td class="'+(change(r,year)<0?'negative':'')+'">'+pct(change(r,year))+'</td></tr>').join('');
+}
+for(const id of ['region','year','filter','rank'])get(id).onchange=update;
+get('economy').onchange=profile;
+get('rows').onclick=event=>{
+  const code=event.target.dataset.code;
+  if(code){get('economy').value=code;profile();get('economy').focus();}
+};
+get('export').onclick=()=>{
+  const quote=value=>'"'+String(value??'').replace(/"/g,'""')+'"';
+  const year=get('year').value;
+  const lines=['economy_code,economy,region,baseline_year,comparison_year,baseline_teu,comparison_teu,change_pct'];
+  for(const r of displayed)lines.push([r.code,r.name,r.region,2019,year,r.values[2019],measure(r,year),change(r,year)].map(quote).join(','));
+  const url=URL.createObjectURL(new Blob([lines.join('\n')+'\n'],{type:'text/csv'}));
+  const link=document.createElement('a');link.href=url;link.download='container-throughput-'+year+'.csv';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+update();
+</script></body></html>
